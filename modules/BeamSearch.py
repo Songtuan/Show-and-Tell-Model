@@ -1,13 +1,15 @@
 import torch
-import torch.nn as nn
+from StateMachine import *
+from BeamStateMachine import *
 
 
 class BeamSearch:
-    def __init__(self, beam_size, state_machine, end_token_idx, seq_length):
+    def __init__(self, beam_size, state_machine, end_token_idx, seq_length, vocab=None):
         self.beam_size = beam_size
         self.state_machine = state_machine
         self.end_token_idx = end_token_idx
         self.seq_length = seq_length
+        self.vocab = vocab
 
     def _step(self, beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum, time_step, hidden_states):
         '''
@@ -48,7 +50,6 @@ class BeamSearch:
                 # can trigger the state transition q -> s_t
                 # for each beam, we only take the top beam_size words it generate
                 # as out candidates
-
                 s_current = self.state_machine.state_idx_mapping[int(q / self.beam_size)]  # current state
                 # fetch the ids of words which can trigger state transition
                 transition = self.state_machine.get_transition(s_current, s_t, 'input')
@@ -61,7 +62,7 @@ class BeamSearch:
 
                 # mask the words which cannot trigger state transition
                 # to ensure them will not be select as candidates
-                mask = torch.ones(1, cols)
+                mask = torch.ones(1, cols).cuda()
                 mask[:, trigger_words_idx] = 0
                 mask = mask.bool()
                 log_probs = log_probs.masked_fill(mask, -1000)
@@ -118,6 +119,11 @@ class BeamSearch:
         return beam_seq, beam_seq_logprobs, beam_logprobs_sum, beam_sizes, hidden_states
 
     def search(self, hidden_states, log_probs, get_logprobs):
+        if self.state_machine is None:
+            assert self.vocab is not None, 'state_machine and vocab cannot both be None'
+            assert len(self.vocab) == log_probs.shape[-1], 'length of vocab should equal to output log_probs last shape'
+            self.state_machine = self.build_default_state_machine(self.vocab)
+
         beam_num = len(self.state_machine.get_states())
         beam_seq = torch.LongTensor(self.seq_length, self.beam_size * beam_num).zero_() + (log_probs.size(1) - 1)
         beam_seq_logprobs = torch.FloatTensor(self.seq_length, self.beam_size * beam_num).zero_()
@@ -154,8 +160,21 @@ class BeamSearch:
                 elif beam_seq[time_step, vix] == logprobsf.size(1) - 1:
                     beam_logprobs_sum[vix] = -1000
 
-            it = beam_seq[time_step]
+            it = beam_seq[time_step].cuda()
             log_probs, _, hidden_states = get_logprobs(it, hidden_states)
 
         done_beams = sorted(done_beams, key=lambda x: -x['p'])[: self.beam_size]
         return done_beams
+
+    def build_default_state_machine(self, vocab):
+        state_idx_mapping = {0: 'init', 1: 'final'}
+
+        state_machine = StateMachine(events={'input': InputEvent()})
+        state_machine.add_state('init')
+        state_machine.add_state('final')
+        state_machine.add_state_idx_mapping(state_idx_mapping)
+        state_machine.add_transition(source_name='init', dest_name='final', event_name='input',
+                                     condition=TransitCondition(vocab.values()))
+
+        return state_machine
+

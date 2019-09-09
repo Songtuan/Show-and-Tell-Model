@@ -5,14 +5,17 @@ import json
 def build():
     with open('glove.6B.100d.txt', encoding='utf8') as f:
         lines = f.readlines()
-        vocab = {'PAD': 0, 'EOS': 1, 'UNK': 2}
-        embedding = np.zeros([len(lines) + 3, 100])
+        vocab = {'PAD': 0, 'SOS': 1, 'EOS': 2, 'UNK': 3}
+        embedding = np.zeros([len(lines) + 4, 100])
         for idx, line in enumerate(lines):
             line = line.strip('\n').split(' ')
             word = line[0]
             vector = np.array(line[1:]).astype(np.float)
-            vocab[word] = idx + 3
+            vocab[word] = idx + 4
             embedding[idx, :] = vector
+        embedding[3] = np.mean(embedding, axis=0)
+        assert embedding.shape == (len(vocab), 100)
+        print(embedding[5])
     return vocab, embedding
 
 

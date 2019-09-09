@@ -100,6 +100,8 @@ class DecoderAttCell(nn.Module):
         if pretrained_embedding is not None:
             self.embedding = self._load_embedding(pretrained_embedding=pretrained_embedding)
         else:
+            assert vocab_size is not None and embedd_size is not None, \
+                'vocab size and embedding size cannot be None if pre-trained embedding is not provided'
             self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedd_size)
 
     def init_weights(self):

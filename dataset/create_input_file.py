@@ -55,7 +55,7 @@ def create_input_file(vocab_json, image_folder=None, captions_per_img=5):
             test_imgs_caps.append(captions)
 
     assert max_cap_length > 0
-    max_cap_length += 1
+    max_cap_length += 1  # the 1 add here is hold for 'EOS' token
 
     seed(123)
     for imgs, caps, split in [(train_imgs, train_imgs_caps, 'TRAIN'),
@@ -66,11 +66,13 @@ def create_input_file(vocab_json, image_folder=None, captions_per_img=5):
         with h5py.File(split + '.hdf5') as h:
             # create dataset to store images' data
             imgs_dataset = h.create_dataset('images', (len(imgs), 224, 224, 3), dtype=float)
-            # create dataset to store captions, which should have size (num_images * num_captions_per_img, max_cap_len)
-            caps_dataset = h.create_dataset('captions', (len(imgs) * captions_per_img, max_cap_length), dtype=int)
+            # create dataset to store captions, which should have size
+            # (num_images * num_captions_per_img, max_cap_len + 1), the 1 add after max_cap_len is hold for
+            # 'SOS' token (start of sentence)
+            caps_dataset = h.create_dataset('captions', (len(imgs) * captions_per_img, max_cap_length + 1), dtype=int)
             # test dataset to store original caption tokens
-            caps_unencode_dataset = h.create_dataset('captions_uncode', (len(imgs) * captions_per_img, max_cap_length),
-                                                     dtype='S10')
+            caps_unencode_dataset = h.create_dataset('captions_uncode',
+                                                     (len(imgs) * captions_per_img, max_cap_length + 1), dtype='S10')
 
             for idx, img_name in enumerate(tqdm(imgs)):
                 # iterate through each image in split dataset
@@ -112,7 +114,11 @@ def create_input_file(vocab_json, image_folder=None, captions_per_img=5):
                             formatted_cap[k] = vocab[cap[k]]
                         formatted_cap_uncode[k] = cap[k]
                     formatted_cap[len(cap)] = vocab['EOS']
+                    formatted_cap = [vocab['SOS']] + formatted_cap
+
                     formatted_cap_uncode[len(cap)] = 'EOS'
+                    formatted_cap_uncode = ['SOS'] + formatted_cap_uncode
+
                     img_caps[j] = np.array(formatted_cap)
                     img_caps_uncode[j] = np.string_(formatted_cap_uncode)
 

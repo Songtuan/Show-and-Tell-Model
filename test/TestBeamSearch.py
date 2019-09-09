@@ -19,7 +19,8 @@ class MyTestCase(unittest.TestCase):
         state_machine.add_state_idx_mapping(state_idx_mapping)
 
         model = ShowTellModel(vocab=vocab, embedd_size=300, attention_size=512, hidden_size=512, state_machine=state_machine)
-        test_input = torch.rand(2, 3, 224, 224)
+        model.cuda()
+        test_input = torch.rand(2, 3, 224, 224).cuda()
         model.eval()
         seq, _ = model(test_input)
 

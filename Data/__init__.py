@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import torchvision.transforms as trn
 import h5py
 
@@ -9,12 +9,11 @@ class Flickr8kDataset(Dataset):
         h = h5py.File(input_file)
         self.imgs = h['images']
         self.captions = h['captions']
-        self.captions_unencode = h['captions_uncode']
+        # self.captions_unencode = h['captions_uncode']
         if transform is not None:
             self.transform = transform
         else:
-            self.transform = trn.Compose([#trn.ToTensor(),
-                                          trn.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+            self.transform = trn.Compose([trn.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
         assert self.imgs.shape[0] * 5 == self.captions.shape[0]
 
@@ -28,7 +27,7 @@ class Flickr8kDataset(Dataset):
         caption = self.captions[item]
         caption = torch.from_numpy(caption)
 
-        caption_unencode = self.captions_unencode[item]
+        # caption_unencode = self.captions_unencode[item]
 
         # data = {'image': img, 'caption': caption, 'caption_unencode': caption_unencode}
         data = {'image': img, 'caption': caption}
