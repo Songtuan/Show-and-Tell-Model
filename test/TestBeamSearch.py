@@ -23,8 +23,8 @@ class MyTestCase(unittest.TestCase):
         test_input = torch.rand(2, 3, 224, 224).cuda()
         model.eval()
         seq, _ = model(test_input)
-
-        self.assertEqual(True, True)
+        print(seq[:, 0].numpy().tolist())
+        self.assertEqual(torch.Size([15, 2]), seq.shape)
 
 
 if __name__ == '__main__':

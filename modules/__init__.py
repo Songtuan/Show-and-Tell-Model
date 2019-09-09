@@ -85,8 +85,14 @@ class DecoderAttCell(nn.Module):
         :param pretrained_embedding: pre-trained word embedding matrix
         '''
         super(DecoderAttCell, self).__init__()
-        self.embedd_size = embedd_size
-        self.vocab_size = vocab_size
+        if pretrained_embedding is not None:
+            embedd_size = pretrained_embedding.shape[-1]
+            self.embedding = self._load_embedding(pretrained_embedding=pretrained_embedding)
+        else:
+            assert vocab_size is not None and embedd_size is not None, \
+                'vocab size and embedding size cannot be None if pre-trained embedding is not provided'
+            self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedd_size)
+
         self.feature_size = feature_size
         self.attention = Attenrion(feature_size=feature_size, hidden_size=hidden_size, attention_size=attention_size)
         self.lstm = nn.LSTMCell(input_size=feature_size + embedd_size, hidden_size=hidden_size)
@@ -96,13 +102,6 @@ class DecoderAttCell(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.get_logits = nn.Linear(in_features=hidden_size, out_features=vocab_size)
         self.log_softmax = nn.LogSoftmax(dim=1)
-
-        if pretrained_embedding is not None:
-            self.embedding = self._load_embedding(pretrained_embedding=pretrained_embedding)
-        else:
-            assert vocab_size is not None and embedd_size is not None, \
-                'vocab size and embedding size cannot be None if pre-trained embedding is not provided'
-            self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedd_size)
 
     def init_weights(self):
         """

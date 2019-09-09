@@ -25,7 +25,7 @@ class Flickr8kDataset(Dataset):
         assert img.shape == torch.Size([3, 224, 224])
 
         caption = self.captions[item]
-        caption = torch.from_numpy(caption)
+        caption = torch.from_numpy(caption).long()
 
         # caption_unencode = self.captions_unencode[item]
 
