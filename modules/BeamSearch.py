@@ -10,6 +10,7 @@ class BeamSearch:
         self.end_token_idx = end_token_idx
         self.seq_length = seq_length
         self.vocab = vocab
+        self.id_to_word = {self.vocab[word]: word for word in self.vocab}  # used for testing and analysing
 
     def _step(self, beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum, time_step, hidden_states):
         '''
@@ -30,6 +31,7 @@ class BeamSearch:
 
         # candidates is used to store potential elements for each beam/state
         candidates = {i: [] for i in range(beam_num)}
+        candidates_word = {i: [] for i in range(beam_num)}  # used for testing and analysing
 
         # cols equal to vocab size
         # which is used to index each word
@@ -37,12 +39,14 @@ class BeamSearch:
 
         # rows equal to the total number of elements of all beams
         # which is used to index each beam element
-        rows = sum(beam_sizes)
-
-        if time_step == 0:
-            assert rows == 1
+        rows = self.beam_size * beam_num
 
         for s_idx in range(beam_num):
+            # we use count_down_beam_sizes to retrieve the remain number
+            # of elements which haven't been processed, once it reach zero
+            # i.e. the number of element in the beam is less than beam size
+            # we won't further process this beam
+            count_down_beam_sizes = beam_sizes[:]
             # map the state id to state name
             s_t = self.state_machine.state_idx_mapping[s_idx]
             for q in range(rows):
@@ -50,6 +54,15 @@ class BeamSearch:
                 # can trigger the state transition q -> s_t
                 # for each beam, we only take the top beam_size words it generate
                 # as out candidates
+                s_current_idx = int(q / self.beam_size)
+                if count_down_beam_sizes[s_current_idx] == 0:
+                    # if all elements in current beam has been processed
+                    # we won't do further search in current beam
+                    continue
+                else:
+                    # decrease the number of unprocessed element
+                    count_down_beam_sizes[s_current_idx] = count_down_beam_sizes[s_current_idx] - 1
+
                 s_current = self.state_machine.state_idx_mapping[int(q / self.beam_size)]  # current state
                 # fetch the ids of words which can trigger state transition
                 transition = self.state_machine.get_transition(s_current, s_t, 'input')
@@ -80,8 +93,20 @@ class BeamSearch:
                     idx = idxs[i]
                     candidate_logprob = beam_logprobs_sum[q] + local_logprob.cpu()
                     candidates[s_idx].append(dict(c=idx, q=q, p=candidate_logprob, r=local_logprob))
+                    candidates_word[s_idx].append(dict(c=self.id_to_word[idx.item()],
+                                                       q=self.state_machine.state_idx_mapping[int(q / self.beam_size)],
+                                                       p=candidate_logprob, r=local_logprob))
 
         candidates = {s: sorted(candidates[s], key=lambda x: -x['p']) for s in range(beam_num)}
+        # this line bolck of code is used to analyse
+        print('candidates word')
+        for i in candidates_word:
+            print('state: {}'.format(self.state_machine.state_idx_mapping[i]))
+            print(candidates_word[i])
+        print('candidates')
+        print(candidates)
+        print('******************************************')
+
         # reset the number of elements within each beam
         # the number of elements should be the minimum of beam_size and the numbere of candidates
         beam_sizes = [min(self.beam_size, len(candidates[s])) for s in range(beam_num)]
@@ -125,7 +150,7 @@ class BeamSearch:
             self.state_machine = self.build_default_state_machine(self.vocab)
 
         beam_num = len(self.state_machine.get_states())
-        beam_seq = torch.LongTensor(self.seq_length, self.beam_size * beam_num).zero_() + (log_probs.size(1) - 1)
+        beam_seq = torch.LongTensor(self.seq_length, self.beam_size * beam_num).zero_() + (self.vocab['<start>'])
         beam_seq_logprobs = torch.FloatTensor(self.seq_length, self.beam_size * beam_num).zero_()
         beam_logprobs_sum = torch.zeros(self.beam_size * beam_num)
         done_beams = []
@@ -134,7 +159,7 @@ class BeamSearch:
 
         for time_step in range(self.seq_length):
             logprobsf = log_probs.data.float()
-            logprobsf[:, logprobsf.size(1) - 1] = logprobsf[:, logprobsf.size(1) - 1] - 1000
+            logprobsf[:, self.vocab['<pad>']] = logprobsf[:, self.vocab['<pad>']] - 1000
 
             beam_seq, \
             beam_seq_logprobs, \
@@ -142,9 +167,15 @@ class BeamSearch:
             beam_sizes, \
             hidden_states = self._step(beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum, time_step, hidden_states)
 
-            for vix in range(self.beam_size, self.beam_size * beam_num):
+            # this block of code is used for testing and analysing
+            print('step log probability')
+            print(beam_seq_logprobs)
+            print('*************************************************')
+
+
+            for vix in range(self.beam_size * (beam_num - 1), self.beam_size * beam_num):
                 # if time's up... or if end token is reached then copy beams
-                if beam_seq[time_step, vix] == self.end_token_idx or time_step == self.seq_length - 1:
+                if beam_seq[time_step, vix].item() == self.end_token_idx or time_step == self.seq_length - 1:
                     final_beam = {
                         'seq': beam_seq[:, vix].clone(),
                         'logps': beam_seq_logprobs[:, vix].clone(),
@@ -157,7 +188,7 @@ class BeamSearch:
                 # if the current beam element has not been selected
                 # we must ensure the <UNK> token at this position will
                 # will not be selected in next round
-                elif beam_seq[time_step, vix] == logprobsf.size(1) - 1:
+                elif beam_seq[time_step, vix] == self.vocab['<unk>']:
                     beam_logprobs_sum[vix] = -1000
 
             it = beam_seq[time_step].cuda()
@@ -166,7 +197,8 @@ class BeamSearch:
         done_beams = sorted(done_beams, key=lambda x: -x['p'])[: self.beam_size]
         return done_beams
 
-    def build_default_state_machine(self, vocab):
+    @staticmethod
+    def build_default_state_machine(vocab):
         state_idx_mapping = {0: 'init', 1: 'final'}
 
         state_machine = StateMachine(events={'input': InputEvent()})
@@ -174,7 +206,11 @@ class BeamSearch:
         state_machine.add_state('final')
         state_machine.add_state_idx_mapping(state_idx_mapping)
         state_machine.add_transition(source_name='init', dest_name='final', event_name='input',
-                                     condition=TransitCondition(vocab.values()))
+                                     condition=TransitCondition(list(vocab.values())))
+        state_machine.add_transition(source_name='final', dest_name='final', event_name='input',
+                                     condition=TransitCondition(list(vocab.values())))
+        state_machine.add_transition(source_name='init', dest_name='init', event_name='input',
+                                     condition=TransitCondition(list(vocab.values())))
 
         return state_machine
 

@@ -6,20 +6,30 @@ from modules import *
 
 
 class ShowTellModel(nn.Module):
-    def __init__(self, vocab, attention_size=512, hidden_size=512, embedd_size=None,
+    def __init__(self, vocab, attention_size=512, hidden_size=512, embed_dim=None,
                  pretrained_embedding=None, feature_size=2048, state_machine=None,
                  beam_size=3, seq_length=15):
         super(ShowTellModel, self).__init__()
         self.seq_length = seq_length
         self.vocab = vocab
         self.beam_size = beam_size
-        self.encoder = Resnet(projection_size=14)
-        self.state_machine = state_machine
+        self.encoder = Resnet(encoded_image_size=14)
+        self.state_machine = state_machine if state_machine is not None else \
+            BeamSearch.BeamSearch.build_default_state_machine(self.vocab)
         vocab_size = len(self.vocab)
-        self.decoder_cell = DecoderAttCell(feature_size=feature_size, attention_size=attention_size,
-                                           embedd_size=embedd_size, hidden_size=hidden_size, vocab_size=vocab_size,
+        self.decoder_cell = DecoderAttCell(encoder_dim=feature_size, attention_dim=attention_size,
+                                           embed_dim=embed_dim, decoder_dim=hidden_size, vocab_size=vocab_size,
                                            pretrained_embedding=pretrained_embedding)
-        self.criterion = nn.CrossEntropyLoss(ignore_index=self.vocab['PAD'], reduction='sum')
+        self.criterion = nn.CrossEntropyLoss(ignore_index=self.vocab['<pad>'], reduction='sum')
+
+    def load_state_machine(self, state_machine):
+        self.state_machine = state_machine
+
+    def load_decoder(self, PATH):
+        self.decoder_cell.load_state_dict(torch.load(PATH))
+
+    def load_encoder(self, PATH):
+        self.encoder.load_state_dict(torch.load(PATH))
 
     def step(self, tokens, states, img_feature):
         h = states['h']
@@ -52,12 +62,12 @@ class ShowTellModel(nn.Module):
             return out_log_probs, loss
         else:
             batch_size = img_feature.shape[0]
-            beam_num = len(self.state_machine.get_states())
             done_beam = [[] for _ in range(batch_size)]
             beam_search = BeamSearch.BeamSearch(beam_size=3, state_machine=self.state_machine,
-                                                end_token_idx=self.vocab['EOS'],
+                                                end_token_idx=self.vocab['<end>'],
                                                 seq_length=self.seq_length, vocab=self.vocab)
 
+            beam_num = len(self.state_machine.get_states())
             seq = torch.LongTensor(self.seq_length, batch_size).zero_()
             seq_logprobs = torch.FloatTensor(self.seq_length, batch_size)
 
@@ -65,7 +75,7 @@ class ShowTellModel(nn.Module):
                 img_feature_temp = img_feature[k:k + 1, :, :, :].expand(self.beam_size * beam_num,
                                                                         img_feature.shape[1], img_feature.shape[2],
                                                                         img_feature.shape[3])
-                init_token = torch.tensor([self.vocab['SOS']]).expand(self.beam_size * beam_num).cuda()
+                init_token = torch.tensor([self.vocab['<start>']]).expand(self.beam_size * beam_num).cuda()
                 states = {'h': None, 'c': None}
                 log_probs, _, states = self.step(init_token, states, img_feature_temp)
 

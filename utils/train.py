@@ -15,7 +15,7 @@ from nltk.translate.bleu_score import corpus_bleu
 parser = argparse.ArgumentParser("Train an Show-and-Tell Model on Flickr8K")
 parser.add_argument('--epochs', default=150, help='setting the number of training epochs')
 parser.add_argument('--learning_rate', default=4e-4, help='setting the learning rate')
-parser.add_argument('--batch_size', default=10, help='setting the batch size')
+parser.add_argument('--batch_size', default=5, help='setting the batch size')
 parser.add_argument('--beam_size', default=3, help='setting the beam size for beam search')
 parser.add_argument('--attention_size',required=False, help='setting attention size')
 parser.add_argument('--hidden_size', required=False, help='setting hidden size')
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     model.cuda()
 
     # create optimizer
-    optimizer = optim.Adam(params=model.parameters(), lr=lr)
+    optimizer = optim.Adam(params=filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
 
     # if the current bleu_4 score better than
     # the best produced before, store the model
@@ -93,6 +93,7 @@ if __name__ == '__main__':
             caps = caps.cuda()
             # perform back-propagation over batch
             _, loss = model(imgs, caps)
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
@@ -101,21 +102,21 @@ if __name__ == '__main__':
             model.eval()
             preds_caps = []
             real_caps = []
+            with torch.no_grad():
+                for data_batch in eval_loader:
+                    # load the batch data
+                    imgs, caps = data_batch['image'], data_batch['caption']
+                    # get the prediction
+                    preds, _ = model(imgs)
 
-            for data_batch in eval_loader:
-                # load the batch data
-                imgs, caps = data_batch['image'], data_batch['caption']
-                # get the prediction
-                preds, _ = model(imgs)
+                    assert preds.shape[-1] == caps.shape[0]
 
-                assert preds.shape[-1] == caps.shape[0]
-
-                for t in range(preds.shape[-1]):
-                    preds_caps.append(decode_str(id_to_word=id_to_word, cap=preds[:, t].numpy().tolist()))
-                    real_caps.append(decode_str(id_to_word=id_to_word, cap=caps[t, :].numpy().tolist()))
+                    for t in range(preds.shape[-1]):
+                        preds_caps.append(decode_str(id_to_word=id_to_word, cap=preds[:, t].numpy().tolist()))
+                        real_caps.append(decode_str(id_to_word=id_to_word, cap=caps[t, :].numpy().tolist()))
 
             bleu_4 = corpus_bleu(list_of_references=real_caps, hypotheses=preds_caps)
-            print(preds_caps[epoch])
+            print(preds_caps[-1])
             print('Epoch: {}, loss: {}, bleu_4: {}'.format(epoch, loss, bleu_4))
             if bleu_4 > best_bleu_4:
                 # if the current bleu_4 score better than

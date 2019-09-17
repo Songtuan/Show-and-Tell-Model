@@ -7,7 +7,7 @@ import torch.nn.functional as F
 class MyTestCase(unittest.TestCase):
     def test_loss(self):
         vocab = {'SOS': 0, 'EOS': 1, 'start': 2, 'do': 3, 'relax': 4, 'cap': 5, 'PAD': 6}
-        model = ShowTellModel(vocab=vocab, embedd_size=300, attention_size=512, hidden_size=512,
+        model = ShowTellModel(vocab=vocab, embed_dim=300, attention_size=512, hidden_size=512,
                               state_machine=None)
         test_input = torch.rand(2, 3, 224, 224)
         test_captions = torch.tensor([[2, 3, 1, 5, 6], [3, 1, 5, 6, 6]])

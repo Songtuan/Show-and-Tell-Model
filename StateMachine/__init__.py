@@ -144,6 +144,10 @@ class StateMachine:
         target = self.states[target_name]
         event = self.events[event_name]
 
+        if self.table.get(source, event) is None:
+            # print('warning {}, {} pair not in transition table'.format(source_name, event_name))
+            return None
+
         for condition, dest in self.table.get(source, event):
             if target == dest:
                 return condition

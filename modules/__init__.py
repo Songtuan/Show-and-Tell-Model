@@ -4,10 +4,10 @@ import torchvision
 
 
 class Resnet(nn.Module):
-    def __init__(self, projection_size=None, fine_tune=False):
+    def __init__(self, encoded_image_size=None, fine_tune=False):
         '''
         Construct a resnet101 model and exclude the last pooling and linear layer
-        :param projection_size: Add an extra pooling layer to force the outputs
+        :param encoded_image_size: Add an extra pooling layer to force the outputs
         have size (channels, projection_size, project_size). If None, do not add
         this layer
         :param fine_tune: Determine whether the model need to be fine-tune
@@ -16,9 +16,9 @@ class Resnet(nn.Module):
         resnet_base = torchvision.models.resnet101(pretrained=True)
         self.resnet = nn.Sequential(*list(resnet_base.children())[: -2])
 
-        self.projection_size = projection_size
-        if projection_size is not None:
-            self.adaptive_pool = nn.AdaptiveAvgPool2d(projection_size)
+        self.projection_size = encoded_image_size
+        if encoded_image_size is not None:
+            self.adaptive_pool = nn.AdaptiveAvgPool2d((encoded_image_size, encoded_image_size))
 
         if not fine_tune:
             # if we disable fine-tune, we need to freeze the parameters in resnet model
@@ -38,69 +38,68 @@ class Resnet(nn.Module):
         return features
 
 
-class Attenrion(nn.Module):
-    def __init__(self, feature_size, hidden_size, attention_size):
-        super(Attenrion, self).__init__()
-        self.feature_projection = nn.Linear(feature_size, attention_size)
-        self.hidden_projection = nn.Linear(hidden_size, attention_size)
-        self.attention_logit = nn.Linear(attention_size, 1)
-        self.softmax = nn.Softmax(dim=1)
+class Attention(nn.Module):
+    """
+    Attention Network.
+    """
 
-    def forward(self, features, hidden_states):
-        '''
-        Steps to calculate attention
-        :param features: feature extracted from images with shape (batch_size, nums_of_features, feature_size)
-        :param hidden_states: hidden states in LSTM with shape (batch_size, hidden_size)
-        :return:
-        '''
-        # project the input features and hidden_states
-        features_projected = self.feature_projection(features)  # shape: (batch_size, nums_of_features, attention_size)
-        hidden_states_projected = self.hidden_projection(hidden_states)  # shape: (batch_size, attention_size)
+    def __init__(self, encoder_dim, decoder_dim, attention_dim):
+        """
+        :param encoder_dim: feature size of encoded images
+        :param decoder_dim: size of decoder's RNN
+        :param attention_dim: size of the attention network
+        """
+        super(Attention, self).__init__()
+        self.encoder_att = nn.Linear(encoder_dim, attention_dim)  # linear layer to transform encoded image
+        self.decoder_att = nn.Linear(decoder_dim, attention_dim)  # linear layer to transform decoder's output
+        self.full_att = nn.Linear(attention_dim, 1)  # linear layer to calculate values to be softmax-ed
+        self.relu = nn.ReLU()
+        self.softmax = nn.Softmax(dim=1)  # softmax layer to calculate weights
 
-        # shape: (batch_size, nums_of_features. attention_size)
-        projection = features_projected + hidden_states_projected.unsqueeze(dim=1)
-        projection = nn.ReLU()(projection)
+    def forward(self, encoder_out, decoder_hidden):
+        """
+        Forward propagation.
 
-        # shape: (batch_size, nums_of_features)
-        logits = self.attention_logit(projection)
-        logits = logits.squeeze(dim=2)
+        :param encoder_out: encoded images, a tensor of dimension (batch_size, num_pixels, encoder_dim)
+        :param decoder_hidden: previous decoder output, a tensor of dimension (batch_size, decoder_dim)
+        :return: attention weighted encoding, weights
+        """
+        att1 = self.encoder_att(encoder_out)  # (batch_size, num_pixels, attention_dim)
+        att2 = self.decoder_att(decoder_hidden)  # (batch_size, attention_dim)
+        att = self.full_att(self.relu(att1 + att2.unsqueeze(1))).squeeze(2)  # (batch_size, num_pixels)
+        alpha = self.softmax(att)  # (batch_size, num_pixels)
+        attention_weighted_encoding = (encoder_out * alpha.unsqueeze(2)).sum(dim=1)  # (batch_size, encoder_dim)
 
-        attention_weight = self.softmax(logits)
-
-        # shape: (batch_size, feature_size)
-        output = features * attention_weight.unsqueeze(dim=2)
-        output = output.sum(dim=1)
-
-        return output, attention_weight
+        return attention_weighted_encoding, alpha
 
 
 class DecoderAttCell(nn.Module):
-    def __init__(self, feature_size, attention_size, embedd_size, hidden_size, vocab_size=None, pretrained_embedding=None):
+    def __init__(self, encoder_dim, attention_dim, embed_dim, decoder_dim, vocab_size=None, pretrained_embedding=None):
         '''
 
-        :param feature_size: size of extracted features
-        :param attention_size: intermediate projection size used to calculated attention
-        :param embedd_size: size of word embedding
-        :param hidden_size: hidden size of LSTM
+        :param encoder_dim: size of extracted features
+        :param attention_dim: intermediate projection size used to calculated attention
+        :param embed_dim: size of word embedding
+        :param decoder_dim: hidden size of LSTM
         :param pretrained_embedding: pre-trained word embedding matrix
         '''
         super(DecoderAttCell, self).__init__()
         if pretrained_embedding is not None:
-            embedd_size = pretrained_embedding.shape[-1]
+            embed_dim = pretrained_embedding.shape[-1]
             self.embedding = self._load_embedding(pretrained_embedding=pretrained_embedding)
         else:
-            assert vocab_size is not None and embedd_size is not None, \
+            assert vocab_size is not None and embed_dim is not None, \
                 'vocab size and embedding size cannot be None if pre-trained embedding is not provided'
-            self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedd_size)
+            self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embed_dim)
 
-        self.feature_size = feature_size
-        self.attention = Attenrion(feature_size=feature_size, hidden_size=hidden_size, attention_size=attention_size)
-        self.lstm = nn.LSTMCell(input_size=feature_size + embedd_size, hidden_size=hidden_size)
-        self.init_h = nn.Linear(in_features=feature_size, out_features=hidden_size)
-        self.init_c = nn.Linear(in_features=feature_size, out_features=hidden_size)
-        self.f_beta = nn.Linear(in_features=hidden_size, out_features=feature_size)
+        self.feature_size = encoder_dim
+        self.attention = Attention(encoder_dim=encoder_dim, decoder_dim=decoder_dim, attention_dim=attention_dim)
+        self.decode_step = nn.LSTMCell(input_size=encoder_dim + embed_dim, hidden_size=decoder_dim)
+        self.init_h = nn.Linear(in_features=encoder_dim, out_features=decoder_dim)
+        self.init_c = nn.Linear(in_features=encoder_dim, out_features=decoder_dim)
+        self.f_beta = nn.Linear(in_features=decoder_dim, out_features=encoder_dim)
         self.sigmoid = nn.Sigmoid()
-        self.get_logits = nn.Linear(in_features=hidden_size, out_features=vocab_size)
+        self.fc = nn.Linear(in_features=decoder_dim, out_features=vocab_size)
         self.log_softmax = nn.LogSoftmax(dim=1)
 
     def init_weights(self):
@@ -108,8 +107,8 @@ class DecoderAttCell(nn.Module):
         Initializes some parameters with values from the uniform distribution, for easier convergence.
         """
         self.embedding.weight.data.uniform_(-0.1, 0.1)
-        self.get_logits.bias.data.fill_(0)
-        self.get_logits.weight.data.uniform_(-0.1, 0.1)
+        self.fc.bias.data.fill_(0)
+        self.fc.weight.data.uniform_(-0.1, 0.1)
 
     def forward(self, tokens, img_feature, h=None, c=None):
         word_features = self.embedding(tokens)
@@ -133,8 +132,8 @@ class DecoderAttCell(nn.Module):
         attention_features = gate * attention_features
 
         lstm_input = torch.cat((word_features, attention_features), dim=1)
-        h, c = self.lstm(lstm_input, (h, c))
-        logits = self.get_logits(h)
+        h, c = self.decode_step(lstm_input, (h, c))
+        logits = self.fc(h)
         log_probs = self.log_softmax(logits)
         return log_probs, logits, (h, c)
 

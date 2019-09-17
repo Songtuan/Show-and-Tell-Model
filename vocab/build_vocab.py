@@ -3,10 +3,10 @@ import json
 
 
 def build():
-    with open('glove.6B.100d.txt', encoding='utf8') as f:
+    with open('glove.6B.50d.txt', encoding='utf8') as f:
         lines = f.readlines()
         vocab = {'PAD': 0, 'SOS': 1, 'EOS': 2, 'UNK': 3}
-        embedding = np.zeros([len(lines) + 4, 100])
+        embedding = np.zeros([len(lines) + 4, 50])
         for idx, line in enumerate(lines):
             line = line.strip('\n').split(' ')
             word = line[0]
@@ -14,7 +14,7 @@ def build():
             vocab[word] = idx + 4
             embedding[idx, :] = vector
         embedding[3] = np.mean(embedding, axis=0)
-        assert embedding.shape == (len(vocab), 100)
+        assert embedding.shape == (len(vocab), 50)
         print(embedding[5])
     return vocab, embedding
 
