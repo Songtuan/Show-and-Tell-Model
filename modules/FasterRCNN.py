@@ -12,7 +12,6 @@ model_urls = {
         'https://download.pytorch.org/models/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth',
 }
 
-
 class FasterRCNN_Encoder(nn.Module):
     def __init__(self, out_dim=None, fine_tune=False):
         super(FasterRCNN_Encoder, self).__init__()

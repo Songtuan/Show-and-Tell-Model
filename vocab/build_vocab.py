@@ -5,7 +5,7 @@ import json
 def build():
     with open('glove.6B.50d.txt', encoding='utf8') as f:
         lines = f.readlines()
-        vocab = {'PAD': 0, 'SOS': 1, 'EOS': 2, 'UNK': 3}
+        vocab = {'<pad>': 0, '<start>': 1, '<end>': 2, '<unk>': 3}
         embedding = np.zeros([len(lines) + 4, 50])
         for idx, line in enumerate(lines):
             line = line.strip('\n').split(' ')

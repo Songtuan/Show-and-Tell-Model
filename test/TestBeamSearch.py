@@ -13,6 +13,7 @@ import torch.nn as nn
 
 dir_main = os.path.abspath(os.path.join(__file__, "../.."))
 
+
 class MyTestCase(unittest.TestCase):
     def test_beam_search(self):
         vocab_path = os.path.join(dir_main, 'vocab', 'vocab_pretrained.json')
@@ -40,6 +41,7 @@ class MyTestCase(unittest.TestCase):
         model.eval()
         seq, _ = model(img)
         self.assertEqual(True, True)
+
 
 if __name__ == '__main__':
     unittest.main()

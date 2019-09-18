@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import allennlp.nn.beam_search as allen_beam_search
+
 from functools import partial
 import modules.BeamSearch as BeamSearch
 from modules import *
@@ -38,6 +40,7 @@ class ShowTellModel(nn.Module):
         states['h'] = h
         states['c'] = c
         return log_probs, logits, states
+        # return log_probs, states
 
     def forward(self, imgs, captions=None):
         # shape (batch_size, 2048, 14, 14), where 2048 is feature_size, 14 is projection size
@@ -78,6 +81,7 @@ class ShowTellModel(nn.Module):
                 init_token = torch.tensor([self.vocab['<start>']]).expand(self.beam_size * beam_num).cuda()
                 states = {'h': None, 'c': None}
                 log_probs, _, states = self.step(init_token, states, img_feature_temp)
+                # log_probs, states = self.step(init_token, states, img_feature_temp)
 
                 get_logprobs = partial(self.step, img_feature=img_feature_temp)
 

@@ -77,7 +77,7 @@ class BeamSearch:
                 # to ensure them will not be select as candidates
                 mask = torch.ones(1, cols).cuda()
                 mask[:, trigger_words_idx] = 0
-                mask = mask.bool()
+                mask = mask.byte()
                 log_probs = log_probs.masked_fill(mask, -1000)
 
                 # if number of trigger words smaller than beam size
@@ -98,14 +98,14 @@ class BeamSearch:
                                                        p=candidate_logprob, r=local_logprob))
 
         candidates = {s: sorted(candidates[s], key=lambda x: -x['p']) for s in range(beam_num)}
-        # this line bolck of code is used to analyse
-        print('candidates word')
-        for i in candidates_word:
-            print('state: {}'.format(self.state_machine.state_idx_mapping[i]))
-            print(candidates_word[i])
-        print('candidates')
-        print(candidates)
-        print('******************************************')
+        # this bolck of code is used to analyse
+        # print('candidates word')
+        # for i in candidates_word:
+        #     print('state: {}'.format(self.state_machine.state_idx_mapping[i]))
+        #     print(candidates_word[i])
+        # print('candidates')
+        # print(candidates)
+        # print('******************************************')
 
         # reset the number of elements within each beam
         # the number of elements should be the minimum of beam_size and the numbere of candidates
@@ -168,10 +168,9 @@ class BeamSearch:
             hidden_states = self._step(beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum, time_step, hidden_states)
 
             # this block of code is used for testing and analysing
-            print('step log probability')
-            print(beam_seq_logprobs)
-            print('*************************************************')
-
+            # print('step log probability')
+            # print(beam_seq_logprobs)
+            # print('*************************************************')
 
             for vix in range(self.beam_size * (beam_num - 1), self.beam_size * beam_num):
                 # if time's up... or if end token is reached then copy beams
@@ -193,6 +192,7 @@ class BeamSearch:
 
             it = beam_seq[time_step].cuda()
             log_probs, _, hidden_states = get_logprobs(it, hidden_states)
+            # log_probs, hidden_states = get_logprobs(it, hidden_states)
 
         done_beams = sorted(done_beams, key=lambda x: -x['p'])[: self.beam_size]
         return done_beams
