@@ -30,7 +30,7 @@ model.cuda()
 
 if __name__ == '__main__':
     model.eval()
-    folder_name = 'n01315980'
+    folder_name = 'n01321579'
     wordnet_id = folder_name
     phases = util.get_hypernyms(wordnet_id=wordnet_id)
     trigger_words = ''
@@ -68,8 +68,7 @@ if __name__ == '__main__':
         ax.set_title(cap)
         ax.imshow(images)
 
-        # model.load_state_machine(state_machine=BeamSearch.BeamSearch.build_default_state_machine(vocab=vocab))
-        model.load_state_machine(state_machine=None)
+        model.load_state_machine(state_machine=BeamSearch.BeamSearch.build_default_state_machine(vocab=vocab))
         seq, _ = model(img)
         preds = util.decode_str(vocab=vocab, cap=seq[:, 0].cpu().numpy().tolist())
         cap = ''

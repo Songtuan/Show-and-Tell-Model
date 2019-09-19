@@ -83,10 +83,8 @@ if __name__ == '__main__':
         if epoch % 10 == 0:
             # evaluation every 10 epochs
             model.eval()
-            preds_caps = []
-            real_caps = []
             bleu_scores = []
-            bleu_eval = BLEU()
+            bleu_eval = BLEU(exclude_indices={vocab['<start>'], vocab['<end>'], vocab['<pad>']})
             with torch.no_grad():
                 for data_batch in eval_loader:
                     # load the batch data

@@ -46,6 +46,22 @@ class UpDownCaptioner(nn.Module):
         return log_probs, logits, states
 
     def _decode_step(self, tokens, states, img_features):
+        '''
+        used in allennlp beam search
+        Args:
+            tokens(torch.Tensor): input token, shape: (batch_size, )
+            states(dict[str, torch.Tensor]): input hidden state, shape: (batch_size, hidden_state)
+            img_features(torch.Tensor): extracted image features through faster-rcnn,
+                                        shape: (batch_size, num_boxes. feature_size)
+
+        Returns:
+            torch.Tensor: log probability distribution of each word in vocabulary
+            dict[str, torch.Tensor]: hidden state produced by decoder cell
+        '''
+        if img_features.shape[0] != tokens.shape[0]:
+            img_features = img_features.unsqueeze(1).repeat(1, self.beam_size, 1, 1)
+            batch_size, beam_size, num_boxes, image_feature_size = img_features.shape
+            img_features = img_features.view(batch_size * beam_size, num_boxes, image_feature_size)
         token_embedding = self.embedding(tokens)
         logits, states = self.decoder_cell(img_features, token_embedding, states)
         logits = self.fc(logits)
@@ -53,6 +69,15 @@ class UpDownCaptioner(nn.Module):
         return log_probs, states
 
     def forward(self, imgs, captions=None):
+        '''
+        forward propagation of caption model
+        Args:
+            imgs(torch.Tensor): input image data, shape: (batch_size, channels, height, width)
+            captions(torch.Tensor, optional): ground-truth captions, required only in training
+
+        Returns:
+            dict[str, torch.Tensor]: output of caption model
+        '''
         batch_size = len(imgs)
         if not self.fine_tune:
             # if faster-rcnn do not require fine-tune
@@ -60,6 +85,8 @@ class UpDownCaptioner(nn.Module):
             # have to pass ground-truth bounding box to it
             self.encoder.eval()
 
+        # convert the batch data into list, which is required input format of faster-rcnn
+        imgs = [imgs[i, :, :, :] for i in range(batch_size)]
         # shape (batch_size*100, encoder_out_dim), where 100 is the number of
         # proposals produced by RPN
         img_features, _ = self.encoder(imgs)
@@ -90,7 +117,7 @@ class UpDownCaptioner(nn.Module):
                 beam_search = allen_beam_search.BeamSearch(end_index=self.vocab['<end>'],
                                                            max_steps=self.seq_length, beam_size=self.beam_size,
                                                            per_node_beam_size=self.beam_size)
-                init_tokens = torch.tensor([self.vocab['<start>']]).expand(batch_size)
+                init_tokens = torch.tensor([self.vocab['<start>']]).expand(batch_size).cuda()
                 states = None
                 step = partial(self._decode_step, img_features=img_features)
                 top_k_preds, log_probs = beam_search.search(start_predictions=init_tokens, start_state=states,

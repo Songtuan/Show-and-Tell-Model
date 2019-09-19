@@ -93,11 +93,16 @@ class BeamSearch:
                     idx = idxs[i]
                     candidate_logprob = beam_logprobs_sum[q] + local_logprob.cpu()
                     candidates[s_idx].append(dict(c=idx, q=q, p=candidate_logprob, r=local_logprob))
-                    candidates_word[s_idx].append(dict(c=self.id_to_word[idx.item()],
-                                                       q=self.state_machine.state_idx_mapping[int(q / self.beam_size)],
+                    candidates_word[s_idx].append(dict(word=self.id_to_word[idx.item()],
+                                                       prev_state=self.state_machine.state_idx_mapping[int(q / self.beam_size)],
                                                        p=candidate_logprob, r=local_logprob))
 
-        candidates = {s: sorted(candidates[s], key=lambda x: -x['p']) for s in range(beam_num)}
+        # candidates = {s: sorted(candidates[s], key=lambda x: -x['p']) for s in range(beam_num)}
+        for s in range(beam_num):
+            candidates[s] = sorted(candidates[s], key=lambda x: -x['p'])
+        for s in range(beam_num):
+            # used for testing
+            candidates_word[s] = sorted(candidates_word[s], key=lambda x: -x['p'])
         # this bolck of code is used to analyse
         # print('candidates word')
         # for i in candidates_word:
