@@ -1,7 +1,10 @@
 import torch
+import plotly.offline as py
+import plotly.figure_factory as ff
+
 from StateMachine import *
 from BeamStateMachine import *
-
+from utils import util
 
 class BeamSearch:
     def __init__(self, beam_size, state_machine, end_token_idx, seq_length, vocab=None):
@@ -31,7 +34,6 @@ class BeamSearch:
 
         # candidates is used to store potential elements for each beam/state
         candidates = {i: [] for i in range(beam_num)}
-        candidates_word = {i: [] for i in range(beam_num)}  # used for testing and analysing
 
         # cols equal to vocab size
         # which is used to index each word
@@ -58,6 +60,10 @@ class BeamSearch:
                 if count_down_beam_sizes[s_current_idx] == 0:
                     # if all elements in current beam has been processed
                     # we won't do further search in current beam
+
+                    # however, we still append NULL token to help
+                    # us visualize beam search
+
                     continue
                 else:
                     # decrease the number of unprocessed element
@@ -93,16 +99,17 @@ class BeamSearch:
                     idx = idxs[i]
                     candidate_logprob = beam_logprobs_sum[q] + local_logprob.cpu()
                     candidates[s_idx].append(dict(c=idx, q=q, p=candidate_logprob, r=local_logprob))
-                    candidates_word[s_idx].append(dict(word=self.id_to_word[idx.item()],
-                                                       prev_state=self.state_machine.state_idx_mapping[int(q / self.beam_size)],
-                                                       p=candidate_logprob, r=local_logprob))
 
         # candidates = {s: sorted(candidates[s], key=lambda x: -x['p']) for s in range(beam_num)}
         for s in range(beam_num):
             candidates[s] = sorted(candidates[s], key=lambda x: -x['p'])
-        for s in range(beam_num):
-            # used for testing
-            candidates_word[s] = sorted(candidates_word[s], key=lambda x: -x['p'])
+
+        candidates_visual = util.visual_component(candidates=candidates, beam_size=self.beam_size,
+                                                 id_to_word=self.id_to_word)
+
+        # for s in range(beam_num):
+        #     # used for testing
+        #     candidates_word[s] = sorted(candidates_word[s], key=lambda x: -x['p'])
         # this bolck of code is used to analyse
         # print('candidates word')
         # for i in candidates_word:
@@ -146,7 +153,7 @@ class BeamSearch:
 
         hidden_states = new_states
 
-        return beam_seq, beam_seq_logprobs, beam_logprobs_sum, beam_sizes, hidden_states
+        return beam_seq, beam_seq_logprobs, beam_logprobs_sum, beam_sizes, hidden_states, candidates_visual
 
     def search(self, hidden_states, log_probs, get_logprobs):
         if self.state_machine is None:
@@ -162,6 +169,8 @@ class BeamSearch:
         beam_sizes = [0] * beam_num
         beam_sizes[0] = 1
 
+        visual_table = {i: [] for i in range(beam_num)}
+
         for time_step in range(self.seq_length):
             logprobsf = log_probs.data.float()
             logprobsf[:, self.vocab['<pad>']] = logprobsf[:, self.vocab['<pad>']] - 1000
@@ -170,7 +179,12 @@ class BeamSearch:
             beam_seq_logprobs, \
             beam_logprobs_sum, \
             beam_sizes, \
-            hidden_states = self._step(beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum, time_step, hidden_states)
+            hidden_states, \
+            candidates_visual = self._step(beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum,
+                                           time_step, hidden_states)
+
+            for i in range(beam_num):
+                visual_table[i].append(candidates_visual[i])
 
             # this block of code is used for testing and analysing
             # print('step log probability')
@@ -188,6 +202,7 @@ class BeamSearch:
                     done_beams.append(final_beam)
                     # don't continue beams from finished sequences
                     beam_logprobs_sum[vix] = -1000
+                    # util.visualize_beam_seq(beam_seq, self.beam_size, self.id_to_word, self.state_machine)
 
                 # if the current beam element has not been selected
                 # we must ensure the <UNK> token at this position will
@@ -200,6 +215,16 @@ class BeamSearch:
             # log_probs, hidden_states = get_logprobs(it, hidden_states)
 
         done_beams = sorted(done_beams, key=lambda x: -x['p'])[: self.beam_size]
+        for i in range(beam_num):
+            header = []
+            for j in range(beam_num):
+                state_name = self.state_machine.state_idx_mapping[j]
+                header.append(state_name)
+                header.append('log_prob')
+            table = [header] + visual_table[i]
+            table = ff.create_table(table)
+            table.layout.width = 10000
+            py.plot(table)
         return done_beams
 
     @staticmethod
@@ -218,4 +243,3 @@ class BeamSearch:
                                      condition=TransitCondition(list(vocab.values())))
 
         return state_machine
-

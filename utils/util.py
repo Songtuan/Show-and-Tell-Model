@@ -1,6 +1,61 @@
+import plotly.offline as py
+import plotly.figure_factory as ff
+
 from BeamStateMachine import *
 from StateMachine import *
 from nltk.corpus import wordnet as wn
+
+
+def visualize_beam_seq(beam_seq, beam_size, id_to_word, state_machine):
+    beam_seq = beam_seq.cpu().tolist()
+    seq_length = len(beam_seq)
+    beam_num = len(beam_seq[-1]) // beam_size
+    table = []
+
+    header = []
+    for beam_idx in range(beam_num):
+        header.append(state_machine.state_idx_mapping[beam_idx])
+    table.append(header)
+
+    for t in range(seq_length):
+        entry = []
+        idx = 0
+        while idx < len(beam_seq[-1]):
+            e = beam_seq[t][idx:(idx + beam_size)]
+            e = [id_to_word[word_id] for word_id in e]
+            entry.append(e)
+            idx += beam_size
+        table.append(entry)
+
+    t = ff.create_table(table)
+    py.plot(t)
+
+
+
+def visual_component(candidates, id_to_word, beam_size):
+    num_states = len(candidates)
+    visualize_step = {}
+    for s in range(num_states):
+        # iterate through each state
+        holder = {idx: [list(), list()] for idx in range(num_states)}
+        for candidate in candidates[s]:
+            # iterate through each candidate
+
+            # fetch out the candidate word and the corresponding
+            # log probability
+            word = id_to_word[candidate['c'].item()]
+            prob = candidate['p'].item()
+            s_idx = candidate['q'] // beam_size
+
+            if len(holder[s_idx][0]) < beam_size:
+                holder[s_idx][0].append(word)
+                holder[s_idx][1].append(prob)
+
+        step = []
+        for idx in range(num_states):
+            step = step + holder[idx]
+        visualize_step[s] = step
+    return visualize_step
 
 
 def decode_str(vocab, cap):

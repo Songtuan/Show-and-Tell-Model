@@ -25,21 +25,26 @@ class MyTestCase(unittest.TestCase):
         model.load_decoder(decoder_path)
         model.double()
         model.cuda()
+        model.eval()
 
         wordnet_id = 'n01321579'
         phases = util.get_hypernyms(wordnet_id=wordnet_id)
+        print(phases)
         state_machine, state_idx_mapping = util.build_state_machine(phases=phases, vocab=vocab)
         state_machine.add_state_idx_mapping(state_idx_mapping=state_idx_mapping)
         model.load_state_machine(state_machine=state_machine)
 
-        img = imread(os.path.join(dir_main, 'img_15.jpg'))
-        img = resize(img, (256, 256, 3))
+        images = imread(os.path.join(dir_main, 'img_15.jpg'))
+        img = resize(images, (256, 256, 3))
         img = trn.ToTensor()(img)
+        img = img.float()
         img = img.unsqueeze(dim=0)
+        img = img.double()
         img = img.cuda()
 
-        model.eval()
         seq, _ = model(img)
+        preds = util.decode_str(vocab=vocab, cap=seq[:, 0].cpu().numpy().tolist())
+        print(preds)
         self.assertEqual(True, True)
 
 

@@ -10,6 +10,7 @@ from torch import optim
 from models.UpDownModel import UpDownCaptioner
 from allennlp.training.metrics import BLEU
 
+
 class MyTestCase(unittest.TestCase):
     def test_training(self):
         dir_main = os.path.abspath(os.path.join(__file__, "../.."))  # the root directory of project

@@ -54,9 +54,12 @@ if __name__ == '__main__':
         images = imread(os.path.join(dir_main, folder_name, file_name))
         img = resize(images, (256, 256, 3))
         img = trn.ToTensor()(images)
+        normalize = trn.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        img = normalize(img)
         img = img.unsqueeze(dim=0)
         img = img.double()
         img = img.cuda()
+        # print(img)
 
         model.load_state_machine(state_machine=state_machine)
         seq, _ = model(img)
@@ -64,6 +67,7 @@ if __name__ == '__main__':
         cap = ''
         for word in preds:
             cap += word + ' '
+        print(cap)
         ax = next(axes)
         ax.set_title(cap)
         ax.imshow(images)
@@ -74,6 +78,7 @@ if __name__ == '__main__':
         cap = ''
         for word in preds:
             cap += word + ' '
+        print(cap)
         ax = next(axes)
         ax.set_title(cap)
         ax.imshow(images)
