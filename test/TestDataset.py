@@ -2,12 +2,12 @@ import unittest
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from Data import Flickr8kDataset
+from Data import CaptionDataset
 
 
 class MyTestCase(unittest.TestCase):
     def test_dataset(self):
-        flickr_dataset = Flickr8kDataset(os.path.join(os.path.abspath(os.path.join(__file__ ,"../..")),
+        flickr_dataset = CaptionDataset(os.path.join(os.path.abspath(os.path.join(__file__, "../..")),
                                                       'dataset', 'VAL.hdf5'))
         fig = plt.figure()
         for i in range(6):

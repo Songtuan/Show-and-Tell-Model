@@ -215,16 +215,16 @@ class BeamSearch:
             # log_probs, hidden_states = get_logprobs(it, hidden_states)
 
         done_beams = sorted(done_beams, key=lambda x: -x['p'])[: self.beam_size]
-        for i in range(beam_num):
-            header = []
-            for j in range(beam_num):
-                state_name = self.state_machine.state_idx_mapping[j]
-                header.append(state_name)
-                header.append('log_prob')
-            table = [header] + visual_table[i]
-            table = ff.create_table(table)
-            table.layout.width = 10000
-            py.plot(table)
+        # for i in range(beam_num):
+        #         #     header = []
+        #         #     for j in range(beam_num):
+        #         #         state_name = self.state_machine.state_idx_mapping[j]
+        #         #         header.append(state_name)
+        #         #         header.append('log_prob')
+        #         #     table = [header] + visual_table[i]
+        #         #     table = ff.create_table(table)
+        #         #     table.layout.width = 10000
+        #         #     py.plot(table)
         return done_beams
 
     @staticmethod

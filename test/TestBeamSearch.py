@@ -34,10 +34,10 @@ class MyTestCase(unittest.TestCase):
         state_machine.add_state_idx_mapping(state_idx_mapping=state_idx_mapping)
         model.load_state_machine(state_machine=state_machine)
 
-        images = imread(os.path.join(dir_main, 'img_15.jpg'))
+        images = imread(os.path.join(dir_main, 'n01321579', 'img_15.jpg'))
         img = resize(images, (256, 256, 3))
-        img = trn.ToTensor()(img)
-        img = img.float()
+        img = torch.from_numpy(img)
+        img = img.permute(2, 0, 1)
         img = img.unsqueeze(dim=0)
         img = img.double()
         img = img.cuda()

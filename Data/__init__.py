@@ -4,7 +4,7 @@ import torchvision.transforms as trn
 import h5py
 
 
-class Flickr8kDataset(Dataset):
+class CaptionDataset(Dataset):
     def __init__(self, input_file, transform=None):
         h = h5py.File(input_file)
         self.imgs = h['images']

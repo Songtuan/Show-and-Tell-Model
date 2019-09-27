@@ -6,7 +6,7 @@ import wget
 from utils import util
 
 from models import ShowTellModel
-from Data import Flickr8kDataset
+from Data import CaptionDataset
 from torch.utils.data import DataLoader
 from nltk.translate.bleu_score import corpus_bleu
 from tqdm import tqdm

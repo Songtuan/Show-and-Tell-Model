@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from torch import optim
 from tqdm import tqdm
 from models.UpDownModel import UpDownCaptioner
-from Data import Flickr8kDataset
+from Data import CaptionDataset
 from allennlp.training.metrics import BLEU
 from nltk.translate.bleu_score import corpus_bleu
 
@@ -43,11 +43,11 @@ if __name__ == '__main__':
 
     # load training set
     training_set_path = os.path.join(dir_main, 'dataset', 'TRAIN.hdf5')
-    training_set = Flickr8kDataset(training_set_path)
+    training_set = CaptionDataset(training_set_path)
 
     # load eval set
     eval_set_path = os.path.join(dir_main, 'dataset', 'VAL.hdf5')
-    eval_set = Flickr8kDataset(eval_set_path)
+    eval_set = CaptionDataset(eval_set_path)
 
     # build data-loaders for both training set and eval set
     # make both of them iterable

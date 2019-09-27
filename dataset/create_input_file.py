@@ -8,7 +8,7 @@ from random import seed, choice, sample
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-def create_input_file(vocab_json, image_folder=None, captions_per_img=1):
+def create_input_file(vocab_json, data_name='flickr8k', image_folder=None, captions_per_img=1):
     with open(vocab_json) as v:
         vocab = json.load(v)
 
@@ -31,7 +31,8 @@ def create_input_file(vocab_json, image_folder=None, captions_per_img=1):
     for img in formatted_input['images']:
         # iterate through each image in dataset
         captions = []
-        file_name = os.path.join(image_folder, img['filename'])
+        file_name = os.path.join(image_folder, img['filename']) if data_name != 'coco' else \
+            os.path.join(image_folder, img['filepath'], img['file_name'])
         for c in img['sentences']:
             # record each caption
             captions.append(c['tokens'])
@@ -137,7 +138,7 @@ def create_input_file(vocab_json, image_folder=None, captions_per_img=1):
     print(unk_token)
 
 if __name__ == '__main__':
-    create_input_file('vocab_pretrained.json', 'images')
+    create_input_file(vocab_json='vocab_pretrained.json', data_name='flickr8k', image_folder='images')
 
 
 

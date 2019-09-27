@@ -6,7 +6,7 @@ import numpy as np
 
 from utils import util
 from models import ShowTellModel
-from Data import Flickr8kDataset
+from Data import CaptionDataset
 from torch.utils.data import DataLoader
 from nltk.translate.bleu_score import corpus_bleu, sentence_bleu
 from tqdm import tqdm
@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     # create eval data-loader
     eval_set_path = os.path.join(dir_main, 'dataset', 'VAL.hdf5')
-    eval_set = Flickr8kDataset(input_file=eval_set_path)
+    eval_set = CaptionDataset(input_file=eval_set_path)
     eval_loader = DataLoader(dataset=eval_set, batch_size=100)
 
     preds_caps = []

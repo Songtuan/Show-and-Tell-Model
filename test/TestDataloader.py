@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.utils.data.dataloader as dataloader
-from Data import Flickr8kDataset
+from Data import CaptionDataset
 
 
 def cycle(data_loader):
@@ -14,7 +14,7 @@ def cycle(data_loader):
 
 class MyTestCase(unittest.TestCase):
     def test_dataloader(self):
-        flickr_dataset = Flickr8kDataset(
+        flickr_dataset = CaptionDataset(
             os.path.join(os.path.abspath(os.path.join(__file__, "../..")), 'dataset', 'TRAIN.hdf5'))
         train_loader = dataloader.DataLoader(flickr_dataset, batch_size=3)
         train_loader = cycle(train_loader)
