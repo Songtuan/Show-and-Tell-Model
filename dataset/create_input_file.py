@@ -6,13 +6,15 @@ from skimage import io
 from skimage.transform import resize
 from random import seed, choice, sample
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+import argparse
 
-def create_input_file(vocab_json, data_name='flickr8k', image_folder=None, captions_per_img=1):
+
+def create_input_file(vocab_json, data_name='flickr8k', data_split_file='dataset_flickr8k.json',
+                      image_folder=None, captions_per_img=1):
     with open(vocab_json) as v:
         vocab = json.load(v)
 
-    with open('dataset_flickr8k.json') as j:
+    with open(data_split_file) as j:
         formatted_input = json.load(j)
 
     train_imgs = []  # record the path to training images
@@ -59,9 +61,9 @@ def create_input_file(vocab_json, data_name='flickr8k', image_folder=None, capti
     max_cap_length += 1  # the 1 add here is hold for 'EOS' token
 
     seed(123)
-    for imgs, caps, split in [# (train_imgs, train_imgs_caps, 'TRAIN'),
-                              (val_imgs, val_imgs_caps, 'VAL'),
-                              (test_imgs, test_imgs_caps, 'TEST')]:
+    for imgs, caps, split in [  # (train_imgs, train_imgs_caps, 'TRAIN'),
+        (val_imgs, val_imgs_caps, 'VAL'),
+        (test_imgs, test_imgs_caps, 'TEST')]:
         # create hdf5 file for each TRAIN, VAL and TEST dataset
 
         with h5py.File(split + '.hdf5') as h:
@@ -137,9 +139,14 @@ def create_input_file(vocab_json, data_name='flickr8k', image_folder=None, capti
 
     print(unk_token)
 
+
+parser = argparse.ArgumentParser('create dataset files')
+parser.add_argument('--data_name', default='coco', help='name of dataset')
+parser.add_argument('--data_split_file', default='dataset_coco.json', help='data split file to be read')
+parser.add_argument('--vocab', default='vocab.json', help='vocabulary')
+parser.add_argument('--image_folder', default='images', help='folder which contain images')
+
 if __name__ == '__main__':
-    create_input_file(vocab_json='vocab_pretrained.json', data_name='flickr8k', image_folder='images')
-
-
-
-
+    opt = parser.parse_args()
+    create_input_file(vocab_json=opt.vocab, data_name=opt.data_name,
+                      data_split_file=opt.data_split_file, image_folder=opt.image_folder)

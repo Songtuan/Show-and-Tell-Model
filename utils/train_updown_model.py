@@ -10,7 +10,6 @@ from tqdm import tqdm
 from models.UpDownModel import UpDownCaptioner
 from Data import CaptionDataset
 from allennlp.training.metrics import BLEU
-from nltk.translate.bleu_score import corpus_bleu
 
 
 parser = argparse.ArgumentParser("Train an Show-and-Tell Model on Flickr8K")
@@ -93,7 +92,8 @@ if __name__ == '__main__':
 
                     output_dict = model(imgs)
                     seq = output_dict['seq']
-                    bleu_score = bleu_eval(predictions=seq, gold_targets=caps)
+                    bleu_eval(predictions=seq, gold_targets=caps)
+                    bleu_score = bleu_eval.get_metric()
                     bleu_scores.append(bleu_score)
             final_bleu = np.mean(np.asarray(bleu_scores))
             if final_bleu > best_bleu:
