@@ -34,7 +34,7 @@ def create_input_file(vocab_json, data_name='flickr8k', data_split_file='dataset
         # iterate through each image in dataset
         captions = []
         file_name = os.path.join(image_folder, img['filename']) if data_name != 'coco' else \
-            os.path.join(image_folder, img['filepath'], img['file_name'])
+            os.path.join(image_folder, img['filepath'], img['filename'])
         for c in img['sentences']:
             # record each caption
             captions.append(c['tokens'])
@@ -61,9 +61,9 @@ def create_input_file(vocab_json, data_name='flickr8k', data_split_file='dataset
     max_cap_length += 1  # the 1 add here is hold for 'EOS' token
 
     seed(123)
-    for imgs, caps, split in [  # (train_imgs, train_imgs_caps, 'TRAIN'),
-        (val_imgs, val_imgs_caps, 'VAL'),
-        (test_imgs, test_imgs_caps, 'TEST')]:
+    for imgs, caps, split in [(train_imgs, train_imgs_caps, 'TRAIN'),
+                              (val_imgs, val_imgs_caps, 'VAL'),
+                              (test_imgs, test_imgs_caps, 'TEST')]:
         # create hdf5 file for each TRAIN, VAL and TEST dataset
 
         with h5py.File(split + '.hdf5') as h:
@@ -146,7 +146,10 @@ parser.add_argument('--data_split_file', default='dataset_coco.json', help='data
 parser.add_argument('--vocab', default='vocab.json', help='vocabulary')
 parser.add_argument('--image_folder', default='images', help='folder which contain images')
 
+dir_main = os.path.join(__file__, '../..')
+
 if __name__ == '__main__':
     opt = parser.parse_args()
-    create_input_file(vocab_json=opt.vocab, data_name=opt.data_name,
+    vocab = os.path.join(dir_main, 'vocab', opt.vocab)
+    create_input_file(vocab_json=vocab, data_name=opt.data_name,
                       data_split_file=opt.data_split_file, image_folder=opt.image_folder)

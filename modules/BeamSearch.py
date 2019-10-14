@@ -1,10 +1,11 @@
 import torch
-import plotly.offline as py
-import plotly.figure_factory as ff
+import os
 
 from StateMachine import *
 from BeamStateMachine import *
-from utils import util
+from graphviz import Digraph
+
+os.environ["PATH"] += os.pathsep + 'C:/Program Files (x86)/Graphviz2.38/bin/'
 
 class BeamSearch:
     def __init__(self, beam_size, state_machine, end_token_idx, seq_length, vocab=None):
@@ -15,7 +16,8 @@ class BeamSearch:
         self.vocab = vocab
         self.id_to_word = {self.vocab[word]: word for word in self.vocab}  # used for testing and analysing
 
-    def _step(self, beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum, time_step, hidden_states):
+    def _step(self, beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum, time_step,
+              hidden_states, dot=None, nodes=None):
         '''
         single beam search step
         :param beam_sizes: a list which contain the number of elements in each beam/state
@@ -104,21 +106,6 @@ class BeamSearch:
         for s in range(beam_num):
             candidates[s] = sorted(candidates[s], key=lambda x: -x['p'])
 
-        candidates_visual = util.visual_component(candidates=candidates, beam_size=self.beam_size,
-                                                 id_to_word=self.id_to_word)
-
-        # for s in range(beam_num):
-        #     # used for testing
-        #     candidates_word[s] = sorted(candidates_word[s], key=lambda x: -x['p'])
-        # this bolck of code is used to analyse
-        # print('candidates word')
-        # for i in candidates_word:
-        #     print('state: {}'.format(self.state_machine.state_idx_mapping[i]))
-        #     print(candidates_word[i])
-        # print('candidates')
-        # print(candidates)
-        # print('******************************************')
-
         # reset the number of elements within each beam
         # the number of elements should be the minimum of beam_size and the numbere of candidates
         beam_sizes = [min(self.beam_size, len(candidates[s])) for s in range(beam_num)]
@@ -129,6 +116,15 @@ class BeamSearch:
             # we''ll need these as reference when we fork beams around
             beam_seq_prev = beam_seq[: time_step].clone()
             beam_seq_logprobs_prev = beam_seq_logprobs[: time_step].clone()
+
+        # update nodes to used for visualizing
+        nodes[time_step] = ['t_{}_{}'.format(time_step, i) for i in range(beam_num * self.beam_size)]
+        # update dot object
+        for i in range(beam_num * self.beam_size):
+            dot.node(nodes[time_step][i], '<pad>')
+        if time_step >= 1:
+            for i in range(beam_num * self.beam_size):
+                dot.edge(nodes[time_step - 1][i], nodes[time_step][i], style='invis')
 
         for idx in range(beam_num * self.beam_size):
             beam_idx = int(idx / self.beam_size)
@@ -143,17 +139,30 @@ class BeamSearch:
                 beam_seq[: time_step, idx] = beam_seq_prev[:, e['q']]
                 beam_seq_logprobs[: time_step, idx] = beam_seq_logprobs_prev[:, e['q']]
 
+                # update dot object
+                dot.edge(nodes[time_step - 1][e['q']], nodes[time_step][idx])
+
             for hidden in new_states:
-                # TODO: need to check further
                 new_states[hidden][idx, :] = hidden_states[hidden][e['q'], :]
 
             beam_seq[time_step, idx] = e['c']
             beam_seq_logprobs[time_step, idx] = e['r']
             beam_logprobs_sum[idx] = e['p']
 
-        hidden_states = new_states
+            # update dot object
+            if self.id_to_word[e['c'].item()] != '<end>':
+                dot.node(nodes[time_step][idx], self.id_to_word[e['c'].item()] + '\n' +
+                         '{:5.2f}'.format(e['p'].item()) + '\n')
+            else:
+                dot.node(nodes[time_step][idx], self.id_to_word[e['c'].item()] + '\n' +
+                         '{:5.2f}'.format(e['p'].item()) + '\n', style='filled', color='lightgrey')
 
-        return beam_seq, beam_seq_logprobs, beam_logprobs_sum, beam_sizes, hidden_states, candidates_visual
+        hidden_states = new_states
+        # print('graph in time step {}'.format(time_step))
+        # print(dot.source)
+        # dot.render('visualization', format='png', view=True)
+
+        return beam_seq, beam_seq_logprobs, beam_logprobs_sum, beam_sizes, hidden_states
 
     def search(self, hidden_states, log_probs, get_logprobs):
         if self.state_machine is None:
@@ -169,7 +178,10 @@ class BeamSearch:
         beam_sizes = [0] * beam_num
         beam_sizes[0] = 1
 
-        visual_table = {i: [] for i in range(beam_num)}
+        dot = Digraph(comment='Beam Search Visualization')
+        dot.attr('node', fixedsize='true')
+        # dot.attr(size='12,12')
+        nodes = {}
 
         for time_step in range(self.seq_length):
             logprobsf = log_probs.data.float()
@@ -179,12 +191,11 @@ class BeamSearch:
             beam_seq_logprobs, \
             beam_logprobs_sum, \
             beam_sizes, \
-            hidden_states, \
-            candidates_visual = self._step(beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum,
-                                           time_step, hidden_states)
+            hidden_states = self._step(beam_sizes, logprobsf, beam_seq, beam_seq_logprobs, beam_logprobs_sum,
+                                           time_step, hidden_states, dot, nodes)
 
-            for i in range(beam_num):
-                visual_table[i].append(candidates_visual[i])
+            # for i in range(beam_num):
+            #     visual_table[i].append(candidates_visual[i])
 
             # this block of code is used for testing and analysing
             # print('step log probability')
@@ -214,32 +225,34 @@ class BeamSearch:
             log_probs, _, hidden_states = get_logprobs(it, hidden_states)
             # log_probs, hidden_states = get_logprobs(it, hidden_states)
 
+        for idx in range(beam_num):
+            state_name = self.state_machine.state_idx_mapping[idx]
+            with dot.subgraph(name='cluster_{}'.format(state_name)) as s:
+                for t in range(self.seq_length):
+                    for node in nodes[t][self.beam_size * idx:self.beam_size * (idx + 1)]:
+                        s.node(node)
+                s.attr(label=state_name)
+                # s.attr(margin='12')
+
+        dot.attr(scale='1.5')
+        dot.render('visualization', format='png', view=True)
         done_beams = sorted(done_beams, key=lambda x: -x['p'])[: self.beam_size]
-        # for i in range(beam_num):
-        #         #     header = []
-        #         #     for j in range(beam_num):
-        #         #         state_name = self.state_machine.state_idx_mapping[j]
-        #         #         header.append(state_name)
-        #         #         header.append('log_prob')
-        #         #     table = [header] + visual_table[i]
-        #         #     table = ff.create_table(table)
-        #         #     table.layout.width = 10000
-        #         #     py.plot(table)
         return done_beams
 
     @staticmethod
     def build_default_state_machine(vocab):
-        state_idx_mapping = {0: 'init', 1: 'final'}
+        # state_idx_mapping = {0: 'init', 1: 'final'}
+        state_idx_mapping = {0: 'final'}
 
         state_machine = StateMachine(events={'input': InputEvent()})
-        state_machine.add_state('init')
+        # state_machine.add_state('init')
         state_machine.add_state('final')
         state_machine.add_state_idx_mapping(state_idx_mapping)
-        state_machine.add_transition(source_name='init', dest_name='final', event_name='input',
-                                     condition=TransitCondition(list(vocab.values())))
+        # state_machine.add_transition(source_name='init', dest_name='final', event_name='input',
+        #                              condition=TransitCondition(list(vocab.values())))
         state_machine.add_transition(source_name='final', dest_name='final', event_name='input',
                                      condition=TransitCondition(list(vocab.values())))
-        state_machine.add_transition(source_name='init', dest_name='init', event_name='input',
-                                     condition=TransitCondition(list(vocab.values())))
+        # state_machine.add_transition(source_name='init', dest_name='init', event_name='input',
+        #                              condition=TransitCondition(list(vocab.values())))
 
         return state_machine

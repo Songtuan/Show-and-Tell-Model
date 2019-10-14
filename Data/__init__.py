@@ -10,7 +10,7 @@ class CaptionDataset(Dataset):
         self.imgs = h['images']
         self.captions = h['captions']
         self.captions_per_img = h.attrs['captions_per_image']
-        # self.captions_unencode = h['captions_uncode']
+        self.captions_unencode = h['captions_uncode']
         assert self.captions.shape[0] // self.imgs.shape[0] == self.captions_per_img
 
         if transform is not None:
@@ -25,15 +25,16 @@ class CaptionDataset(Dataset):
         img = trn.ToTensor()(img)
         if img[img > 1].shape[0] != 0 or img[img < 0].shape[0] != 0:
             img = self.transform(img)
+        img = img.float()
         assert img.shape == torch.Size([3, 256, 256])
 
         caption = self.captions[item]
         caption = torch.from_numpy(caption).long()
 
-        # caption_unencode = self.captions_unencode[item]
+        caption_unencode = self.captions_unencode[item]
 
-        # data = {'image': img, 'caption': caption, 'caption_unencode': caption_unencode}
-        data = {'image': img, 'caption': caption}
+        data = {'image': img, 'caption': caption, 'caption_unencode': caption_unencode}
+        # data = {'image': img, 'caption': caption}
         return data
 
     def __len__(self):

@@ -5,6 +5,7 @@ from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from torchvision.models.utils import load_state_dict_from_url
 
+
 from collections import OrderedDict
 
 model_urls = {

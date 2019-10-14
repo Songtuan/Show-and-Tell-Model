@@ -68,6 +68,9 @@ class UpDownCaptioner(nn.Module):
         log_probs = self.log_softmax(logits)
         return log_probs, states
 
+    def load_state_machine(self, state_machine):
+        self.state_machine = state_machine
+
     def forward(self, imgs, captions=None):
         '''
         forward propagation of caption model
@@ -104,10 +107,10 @@ class UpDownCaptioner(nn.Module):
             max_length = captions.shape[-1]
             loss = 0
 
-            for t in range(max_length):
+            for t in range(max_length - 1):
                 tokens = captions[:, t]
                 log_probs, logits, states = self._step(tokens=tokens, states=states, img_features=img_features)
-                loss += self.criterion(logits, captions[:, t])
+                loss += self.criterion(logits, captions[:, t + 1])
 
             output_dict['loss'] = loss
             return output_dict
@@ -142,7 +145,7 @@ class UpDownCaptioner(nn.Module):
                 states = None
                 log_probs, _, states = self._step(tokens=init_tokens, states=states, img_features=img_features_temp)
 
-                get_logprobs = partial(self.step, img_features=img_features_temp)
+                get_logprobs = partial(self._step, img_features=img_features_temp)
 
                 done_beam[k] = beam_search.search(hidden_states=states, log_probs=log_probs, get_logprobs=get_logprobs)
 

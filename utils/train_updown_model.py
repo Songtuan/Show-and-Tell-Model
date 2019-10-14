@@ -76,13 +76,13 @@ if __name__ == '__main__':
             # perform back-propagation over batch
             output_dict = model(imgs, caps)
             loss = output_dict['loss']
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
         if epoch % 10 == 0:
             # evaluation every 10 epochs
             model.eval()
-            bleu_scores = []
             bleu_eval = BLEU(exclude_indices={vocab['<start>'], vocab['<end>'], vocab['<pad>']})
             with torch.no_grad():
                 for data_batch in eval_loader:
@@ -93,11 +93,10 @@ if __name__ == '__main__':
                     output_dict = model(imgs)
                     seq = output_dict['seq']
                     bleu_eval(predictions=seq, gold_targets=caps)
-                    bleu_score = bleu_eval.get_metric()
-                    bleu_scores.append(bleu_score)
-            final_bleu = np.mean(np.asarray(bleu_scores))
-            if final_bleu > best_bleu:
-                best_bleu = final_bleu
+
+            bleu_score = bleu_eval.get_metric()['BLEU']
+            if bleu_score > best_bleu:
+                best_bleu = bleu_score
                 torch.save(model.state_dict(), model_store_path)
 
 
